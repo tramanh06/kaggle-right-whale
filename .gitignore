@@ -100,3 +100,4 @@ backup/
 submissions/
 models/
 logs/
+.idea/*
