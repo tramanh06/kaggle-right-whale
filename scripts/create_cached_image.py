@@ -1,5 +1,9 @@
 """
 Create cached images to memmap
+
+To run:
+ipython -i --pdb create_cached_image.py -- --size 256
+
 """
 from __future__ import division
 import argparse
@@ -11,10 +15,11 @@ import numpy as np
 from skimage.io import imread
 from tqdm import tqdm
 from skimage.transform import resize
+from config import FILEPATH_CONFIG
 
 
 def check_if_image_exists(fname):
-    fname = os.path.join('data/imgs/', fname)
+    fname = os.path.join(FILEPATH_CONFIG['data']+'imgs/', fname)
     return os.path.exists(fname)
 
 
@@ -31,17 +36,18 @@ def load_images(df):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--size', required=True, type=int, help='Size of the image')
-    parser.add_argument('--overwrite', action='store_true', help='Overwirte existing cache')
+    parser.add_argument('--overwrite', action='store_true', help='Overwrite existing cache')
     parser.add_argument('--vinh', action='store_true')
 
     args = parser.parse_args()
 
     if args.vinh:
-        df_bbox = pd.read_csv('data/train_with_annotations_vinh.csv')
+        df_bbox = pd.read_csv(FILEPATH_CONFIG['data']+'train_with_annotations_vinh.csv')
     else:
-        df_bbox = pd.read_csv('data/train_with_annotations.csv')
+        df_bbox = pd.read_csv(FILEPATH_CONFIG['data']+'train_with_annotations.csv')
+    print(df_bbox)
 
-    df_pts = pd.read_csv('data/train_with_points.csv')
+    df_pts = pd.read_csv(FILEPATH_CONFIG['data']+'train_with_points.csv')
     df_pts = df_pts.drop('whaleID', axis=1)
 
     df = df_bbox.merge(df_pts, on='Image')
@@ -59,10 +65,10 @@ if __name__ == '__main__':
 
     vinh_suffix = '_vinh' if args.vinh else ''
 
-    X_fname = 'cache/X_%s%s_%s.npy' % (args.size, vinh_suffix, get_current_date())
-    y_fname = 'cache/y_%s%s_%s.npy' % (args.size, vinh_suffix, get_current_date())
-    bbox_fname = 'cache/bbox_%s%s_%s.npy' % (args.size, vinh_suffix, get_current_date())
-    pts_fname = 'cache/pts_%s%s_%s.npy' % (args.size, vinh_suffix, get_current_date())
+    X_fname = FILEPATH_CONFIG['cache']+'X_%s%s_%s.npy' % (args.size, vinh_suffix, get_current_date())
+    y_fname = FILEPATH_CONFIG['cache']+'y_%s%s_%s.npy' % (args.size, vinh_suffix, get_current_date())
+    bbox_fname = FILEPATH_CONFIG['cache']+'/bbox_%s%s_%s.npy' % (args.size, vinh_suffix, get_current_date())
+    pts_fname = FILEPATH_CONFIG['cache']+'pts_%s%s_%s.npy' % (args.size, vinh_suffix, get_current_date())
 
     X_shape = (len(df), 3, args.size, args.size)
     y_shape = (len(df))
@@ -72,25 +78,25 @@ if __name__ == '__main__':
     print(X_shape, y_shape, bbox_shape)
 
     if os.path.exists(X_fname) and not args.overwrite:
-        print ('%s exists. Use --overwrite' % X_fname)
+        print('%s exists. Use --overwrite' % X_fname)
         sys.exit(1)
 
     if os.path.exists(y_fname) and not args.overwrite:
-        print ('%s exists. Use --overwrite' % y_fname)
+        print('%s exists. Use --overwrite' % y_fname)
         sys.exit(1)
 
     if os.path.exists(bbox_fname) and not args.overwrite:
-        print ('%s exists. Use --overwrite' % bbox_fname)
+        print('%s exists. Use --overwrite' % bbox_fname)
         sys.exit(1)
 
     if os.path.exists(pts_fname) and not args.overwrite:
-        print ('%s exists. Use --overwrite' % pts_fname)
+        print('%s exists. Use --overwrite' % pts_fname)
         sys.exit(1)
 
-    print ('Will write X to %s with shape of %s' % (X_fname, X_shape))
-    print ('Will write y to %s with shape of %s' % (y_fname, y_shape))
-    print ('Will write bbox to %s with shape of %s' % (bbox_fname, bbox_shape))
-    print ('Will write pts to %s with shape of %s' % (pts_fname, pts_shape))
+    print('Will write X to %s with shape of %s' % (X_fname, X_shape))
+    print('Will write y to %s with shape of %s' % (y_fname, y_shape))
+    print('Will write bbox to %s with shape of %s' % (bbox_fname, bbox_shape))
+    print('Will write pts to %s with shape of %s' % (pts_fname, pts_shape))
 
     X_fp = np.memmap(X_fname, dtype=np.float32, mode='w+', shape=X_shape)
     y_fp = np.memmap(y_fname, dtype=np.int32, mode='w+', shape=y_shape)
@@ -98,7 +104,7 @@ if __name__ == '__main__':
     pts_fp = np.memmap(pts_fname, dtype=np.int32, mode='w+', shape=pts_shape)
 
     for i, row in tqdm(df.iterrows(), total=len(df)):
-        fname = os.path.join('data/imgs/', row['Image'])
+        fname = os.path.join(FILEPATH_CONFIG['data']+'imgs/', row['Image'])
         whale_id = row['whaleID']
         x = row['x']
         y = row['y']
@@ -142,4 +148,4 @@ if __name__ == '__main__':
             bbox_fp.flush()
             pts_fp.flush()
         except:
-            print ('%s has failed' % i)
+            print('%s has failed' % i)

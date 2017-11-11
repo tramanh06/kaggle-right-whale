@@ -4,23 +4,24 @@ os.environ['THEANO_FLAGS'] = 'floatX=float32,device=gpu1,nvcc.fastmath=True,lib.
 import sys
 import importlib
 
-import theano
-import theano.tensor as T
+# import theano
+# import theano.tensor as T
 import numpy as np
 import matplotlib
-import cPickle as pickle
+import pickle
 matplotlib.use('Agg')
 
 from sklearn.metrics import mean_squared_error
 from sklearn.cross_validation import KFold
+from config import FILEPATH_CONFIG
 
 
 def load_data(fname):
     n = 4543
     size = int(fname.split('_')[0])
 
-    X_fname = 'cache/X_%s.npy' % fname
-    y_fname = 'cache/pts_%s.npy' % fname
+    X_fname = FILEPATH_CONFIG['cache']+'X_%s.npy' % fname
+    y_fname = FILEPATH_CONFIG['cache']+'pts_%s.npy' % fname
 
     X_shape = (n, 3, size, size)
     y_shape = (n, 4)
@@ -55,7 +56,7 @@ if __name__ == '__main__':
     parser.add_argument('--continue_training', action='store_true')
     args = parser.parse_args()
 
-    print 'Loading model: %s' % args.model
+    print('Loading model: %s' % args.model)
     model = load_model(args.model)
     net = model.net
     net.initialize()
@@ -65,39 +66,39 @@ if __name__ == '__main__':
     ])
 
     if output_exists and not args.overwrite:
-        print 'Model output exists. Use --overwrite'
+        print('Model output exists. Use --overwrite')
         sys.exit(1)
 
-    print 'Loading data: %s' % args.data
+    print('Loading data: %s' % args.data)
     X, y = load_data(args.data)
-    print X.shape, y.shape
+    print(X.shape, y.shape
 
     if args.continue_training and os.path.exists(model.model_fname):
-        print 'Loading model params from %s' % model.model_fname
+        print('Loading model params from %s' % model.model_fname)
         net.load_params_from(model.model_fname)
         with open(model.model_history_fname) as f:
             net.train_history_ = pickle.load(f)
 
     if not args.no_test:
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        print X_train.shape, X_train.dtype
-        print y_train.shape, y_train.dtype
-        print X_test.shape, y_train.dtype
-        print y_test.shape, y_test.dtype
+        print(X_train.shape, X_train.dtype)
+        print(y_train.shape, y_train.dtype)
+        print(X_test.shape, y_train.dtype)
+        print(y_test.shape, y_test.dtype)
 
         net.fit(X_train, y_train)
 
-        print 'Loading best param'
+        print('Loading best param')
         net.load_params_from(model.model_fname)
-        print
+        print())
 
-        print 'Evaluating on testing set'
+        print('Evaluating on testing set')
         y_test_pred = net.predict(X_test)
         print
 
-        print 'Test result'
-        print '==========='
-        print mean_squared_error(y_test, y_test_pred)
+        print('Test result')
+        print('===========')
+        print(mean_squared_error(y_test, y_test_pred)
         print
 
     else:
