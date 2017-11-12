@@ -135,8 +135,8 @@ import torch.nn.functional as F
 
 class Net(nn.Module):
     def __init__(self):
-        self.__NUM_CLASS = 447
         super(Net, self).__init__()
+        self.__NUM_CLASS = 447
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=6,
                                kernel_size=3, stride=1)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
@@ -153,19 +153,19 @@ class Net(nn.Module):
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
-        print("After conv2:")
-        print(x.size())
+        # print("After conv2:")
+        # print(x.size())
         x = x.view(-1, 16*61*93)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
-        print("After FC3:")
-        print(x.size())
+        # print("After FC3:")
+        # print(x.size())
         return x
 
 
-whale_dataset = WhaleDataset(csv_file=FILEPATH_CONFIG['data']+'train.csv',
-                            root_dir=FILEPATH_CONFIG['data']+'imgs')
+# whale_dataset = WhaleDataset(csv_file=FILEPATH_CONFIG['data']+'train.csv',
+#                             root_dir=FILEPATH_CONFIG['data']+'imgs')
 
 transformed_dataset = WhaleDataset(csv_file=FILEPATH_CONFIG['data']+'train.csv',
                                            root_dir=FILEPATH_CONFIG['data']+'imgs',
@@ -190,8 +190,8 @@ for epoch in range(2):  # loop over the dataset multiple times
         # get the inputs
         inputs, labels = data['image'], data['whale_id']
 
-        print("Input image size:")
-        print(inputs.size())
+        # print("Input image size:")
+        # print(inputs.size())
 
         # wrap them in Variable
         inputs, labels = Variable(inputs), Variable(labels)
@@ -201,7 +201,9 @@ for epoch in range(2):  # loop over the dataset multiple times
 
         # forward + backward + optimize
         outputs = net(inputs)
+        # print(outputs)
         loss = criterion(outputs, labels)
+        print(loss)
         loss.backward()
         optimizer.step()
 
@@ -209,7 +211,7 @@ for epoch in range(2):  # loop over the dataset multiple times
         running_loss += loss.data[0]
         if i % 2000 == 1999:    # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' %
-                  (epoch + 1, i + 1, running_loss / 2000))
+              (epoch + 1, i + 1, running_loss / 2000))
             running_loss = 0.0
 
 print('Finished Training')
