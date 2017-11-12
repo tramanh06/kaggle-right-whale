@@ -10,7 +10,6 @@ from torchvision import transforms, utils
 from config import FILEPATH_CONFIG
 from sklearn import preprocessing
 
-
 class WhaleDataset(Dataset):
     """Whale dataset."""
 
@@ -25,7 +24,6 @@ class WhaleDataset(Dataset):
         label_data = pd.read_csv(csv_file)
         label_encoder = preprocessing.LabelEncoder()
         label_data['label'] = label_encoder.fit_transform(label_data['whaleID'])
-        # label_data.to_csv("labels.csv")
 
         self.img_lookup = label_data
         self.root_dir = root_dir
@@ -135,7 +133,7 @@ import torch.nn.functional as F
 
 class Net(nn.Module):
     def __init__(self):
-        self.__NUM_CLASS = 447
+        self.__NUM_CLASS = 9
         super(Net, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=6,
                                kernel_size=3, stride=1)
@@ -153,22 +151,22 @@ class Net(nn.Module):
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
-        print("After conv2:")
-        print(x.size())
+        # print("After conv2:")
+        # print(x.size())
         x = x.view(-1, 16*61*93)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
-        print("After FC3:")
-        print(x.size())
+        # print("After FC3:")
+        # print(x.size())
         return x
 
 
-whale_dataset = WhaleDataset(csv_file=FILEPATH_CONFIG['data']+'train.csv',
-                            root_dir=FILEPATH_CONFIG['data']+'imgs')
+whale_dataset = WhaleDataset(csv_file=FILEPATH_CONFIG['data']+'train_mini.csv',
+                            root_dir=FILEPATH_CONFIG['data']+'imgs_mini')
 
-transformed_dataset = WhaleDataset(csv_file=FILEPATH_CONFIG['data']+'train.csv',
-                                           root_dir=FILEPATH_CONFIG['data']+'imgs',
+transformed_dataset = WhaleDataset(csv_file=FILEPATH_CONFIG['data']+'train_mini.csv',
+                                           root_dir=FILEPATH_CONFIG['data']+'imgs_mini',
                                            transform=transforms.Compose([
                                                Rescale((256,384)),
                                                ToTensor()
@@ -203,13 +201,15 @@ for epoch in range(2):  # loop over the dataset multiple times
         outputs = net(inputs)
         loss = criterion(outputs, labels)
         loss.backward()
+        print(loss)
         optimizer.step()
 
         # print statistics
         running_loss += loss.data[0]
-        if i % 2000 == 1999:    # print every 2000 mini-batches
-            print('[%d, %5d] loss: %.3f' %
-                  (epoch + 1, i + 1, running_loss / 2000))
-            running_loss = 0.0
+        # if i % 2000 == 1999:    # print every 2000 mini-batches
+        print('[%d, %5d] loss: %.3f' %
+            # (epoch + 1, i + 1, running_loss / 2000))
+            (epoch + 1, i + 1, running_loss))
+        running_loss = 0.0
 
-print('Finished Training')
+print('Finished train_miniing')
