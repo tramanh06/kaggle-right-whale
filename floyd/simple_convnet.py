@@ -122,38 +122,36 @@ class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
         self.__NUM_CLASS = 447
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=6,
-                               kernel_size=3, stride=1)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        # Conv1: 256x384x3 => 254x382x6
-        # Pool1: 254x382x6 => 127x191x6
-        self.conv2 = nn.Conv2d(in_channels=6, out_channels=16,
-                               kernel_size=5)
-        # Conv2: 127x191x6 => 123x187x16
-        # Pool2: 123x187x16 => 61x93x16
-        self.fc1 = nn.Linear(16 * 61 * 93, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, self.__NUM_CLASS)
+        # self.__NUM_CLASS = 10
+        self.layer1 = nn.Sequential(
+            nn.Conv2d(3, 16, kernel_size=5, padding=2),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            nn.MaxPool2d(2))
+        self.layer2 = nn.Sequential(
+            nn.Conv2d(16, 32, kernel_size=5, padding=2),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(2))
+        self.fc = nn.Linear(32 * 64 * 96, self.__NUM_CLASS)
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 16 * 61 * 93)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
+        out = self.layer1(x)
+        out = self.layer2(out)
+        out = out.view(out.size(0), -1)
+        out = self.fc(out)
+        return out
 
 
-train_dataset = WhaleDataset(csv_file='/data/train.csv',
-                             root_dir='/data/imgs',
+train_dataset = WhaleDataset(csv_file='../data-mini/train.csv',
+                             root_dir='../data-mini/imgs',
                              train=True,
                              transform=transforms.Compose([
                                        Rescale((256, 384)),
                                        ToTensor()
                                    ]))
-test_dataset = WhaleDataset(csv_file='/data/sample_submission.csv',
-                            root_dir='/data/imgs',
+test_dataset = WhaleDataset(csv_file='../data-mini/sample_submission.csv',
+                            root_dir='../data-mini/imgs',
                             transform=transforms.Compose([
                                 Rescale((256, 384)),
                                 ToTensor()
@@ -201,7 +199,7 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
         # print statistics
         running_loss += loss.data[0]
         if i % 10 == 0:  # print every 2000 mini-batches
-            print('[%d, %9d] loss: %.3f' %
+            print('[%d, %5d] loss: %.9f' %
                   (epoch + 1, i + 1, running_loss / 2000))
             running_loss = 0.0
 
@@ -211,7 +209,6 @@ pickle.dump(net, open("/output/net_baseline.p", "wb"))
 
 # Test the model
 net.eval()
-
 encoder = test_dataset.get_encoder()
 test_data_list = []
 
@@ -244,8 +241,10 @@ for data in test_loader:
 # Write to submission file
 predicted_compiled = pd.DataFrame(columns=['Image', 'whale_id'], data=test_data_list)
 one_hot = pd.get_dummies(predicted_compiled['whale_id'])
+
 # Drop column whale_id as it is now encoded
 predicted_compiled = predicted_compiled.drop('whale_id', axis=1)
+
 # Join the encoded df
 for_submission = predicted_compiled.join(one_hot)
 for_submission.to_csv("/output/submission.csv", index=False)
