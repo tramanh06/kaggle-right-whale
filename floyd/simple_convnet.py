@@ -64,7 +64,8 @@ class WhaleDataset(Dataset):
 
         return sample
 
-    def inverse_transform(self, encoder, class_labels):
+    @staticmethod
+    def inverse_transform(encoder, class_labels):
         return encoder.inverse_transform(class_labels)
 
     def get_encoder(self):
