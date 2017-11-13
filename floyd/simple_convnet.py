@@ -17,14 +17,13 @@ import pickle
 num_epochs = 5
 batch_size = 100
 learning_rate = 0.001
-is_gpu = True
+is_gpu = False
 
 
 class WhaleDataset(Dataset):
     """Whale dataset."""
 
     encoder_filepath = "label_encoder.p"
-    sample_submission_filepath = "/data/submission_template.csv"
 
     def __init__(self, csv_file, root_dir, train=False, transform=None):
         """
@@ -70,10 +69,6 @@ class WhaleDataset(Dataset):
 
     def get_encoder(self):
         return pickle.load(open(self.encoder_filepath, "rb"))
-
-    def get_sample_submission(self):
-        return pd.read_csv(self.sample_submission_filepath)
-
 
 
 class Rescale(object):
@@ -230,7 +225,7 @@ for data in test_loader:
     print("Predicted")
     print(predicted)
 
-    whale_id = test_dataset.inverse_transform(encoder, predicted)
+    whale_id = test_dataset.inverse_transform(encoder, predicted.numpy())
     print("Corresponding whale ID")
     print(whale_id)
 
@@ -238,11 +233,10 @@ for data in test_loader:
     test_data_list.extend(dictionary)
 
 # Write to submission file
-sample_submission = test_dataset.get_sample_submission()
 predicted_compiled = pd.DataFrame(columns=['Image', 'whale_id'], data=test_data_list)
 one_hot = pd.get_dummies(predicted_compiled['whale_id'])
 # Drop column whale_id as it is now encoded
 predicted_compiled = predicted_compiled.drop('whale_id', axis=1)
 # Join the encoded df
 for_submission = predicted_compiled.join(one_hot)
-for_submission.to_csv("/output/submission.csv")
+for_submission.to_csv("/output/submission.csv", index=False)
