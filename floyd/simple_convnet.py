@@ -14,17 +14,16 @@ import torch.optim as optim
 import pickle
 
 # Hyper Parameters
-num_epochs = 5
-batch_size = 100
+num_epochs = 1
+batch_size = 5
 learning_rate = 0.001
-is_gpu = True
+is_gpu = False
 
 
 class WhaleDataset(Dataset):
     """Whale dataset."""
 
     encoder_filepath = "label_encoder.p"
-    sample_submission_filepath = "/data/submission_template.csv"
 
     def __init__(self, csv_file, root_dir, train=False, transform=None):
         """
@@ -70,10 +69,6 @@ class WhaleDataset(Dataset):
 
     def get_encoder(self):
         return pickle.load(open(self.encoder_filepath, "rb"))
-
-    def get_sample_submission(self):
-        return pd.read_csv(self.sample_submission_filepath)
-
 
 
 class Rescale(object):
@@ -126,7 +121,7 @@ class ToTensor(object):
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        self.__NUM_CLASS = 447
+        self.__NUM_CLASS = 10
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=6,
                                kernel_size=3, stride=1)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
@@ -150,22 +145,22 @@ class Net(nn.Module):
         return x
 
 
-train_dataset = WhaleDataset(csv_file='/data/train.csv',
-                             root_dir='/data/imgs',
+train_dataset = WhaleDataset(csv_file='../data-mini/train.csv',
+                             root_dir='../data-mini/imgs',
                              train=True,
                              transform=transforms.Compose([
                                        Rescale((256, 384)),
                                        ToTensor()
                                    ]))
-test_dataset = WhaleDataset(csv_file='/data/sample_submission.csv',
-                            root_dir='/data/imgs',
+test_dataset = WhaleDataset(csv_file='../data-mini/sample_submission.csv',
+                            root_dir='../data-mini/imgs',
                             transform=transforms.Compose([
                                 Rescale((256, 384)),
                                 ToTensor()
                             ]))
 train_loader = DataLoader(train_dataset, batch_size=batch_size,
                           shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=batch_size,
+test_loader = DataLoader(test_dataset, batch_size=2,
                          shuffle=False)
 print("Done loading data")
 
@@ -211,7 +206,7 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
 
 print('Finished Training')
 
-pickle.dump(net, open("/output/net_baseline.p", "wb"))
+pickle.dump(net, open("output/net_baseline.p", "wb"))
 
 # Test the model
 net.eval()
@@ -230,7 +225,7 @@ for data in test_loader:
     print("Predicted")
     print(predicted)
 
-    whale_id = test_dataset.inverse_transform(encoder, predicted)
+    whale_id = test_dataset.inverse_transform(encoder, predicted.numpy())
     print("Corresponding whale ID")
     print(whale_id)
 
@@ -238,11 +233,10 @@ for data in test_loader:
     test_data_list.extend(dictionary)
 
 # Write to submission file
-sample_submission = test_dataset.get_sample_submission()
 predicted_compiled = pd.DataFrame(columns=['Image', 'whale_id'], data=test_data_list)
 one_hot = pd.get_dummies(predicted_compiled['whale_id'])
 # Drop column whale_id as it is now encoded
 predicted_compiled = predicted_compiled.drop('whale_id', axis=1)
 # Join the encoded df
 for_submission = predicted_compiled.join(one_hot)
-for_submission.to_csv("/output/submission.csv")
+for_submission.to_csv("output/submission.csv", index=False)
