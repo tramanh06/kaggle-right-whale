@@ -6,7 +6,6 @@ from skimage import io, transform
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
-from config import FILEPATH_CONFIG
 from sklearn import preprocessing
 from torch.autograd import Variable
 import torch.nn as nn
@@ -16,15 +15,18 @@ import pickle
 
 # Hyper Parameters
 num_epochs = 5
-batch_size = 4
+batch_size = 100
 learning_rate = 0.001
-is_gpu = False
+is_gpu = True
 
 
 class WhaleDataset(Dataset):
     """Whale dataset."""
 
-    def __init__(self, csv_file, root_dir, transform=None):
+    encoder_filepath = "label_encoder.p"
+    sample_submission_filepath = "/data/submission_template.csv"
+
+    def __init__(self, csv_file, root_dir, train=False, transform=None):
         """
         Args:
             csv_file (string): Path to the csv file with annotations.
@@ -34,9 +36,12 @@ class WhaleDataset(Dataset):
         """
         label_data = pd.read_csv(csv_file)
         label_encoder = preprocessing.LabelEncoder()
-        label_data['label'] = label_encoder.fit_transform(label_data['whaleID'])
-        pickle.dump(label_encoder, open("label_encoder.p", "wb"))
-        print("Finish writing encoder to file")
+        if train:
+            label_data['label'] = label_encoder.fit_transform(label_data['whaleID'])
+            pickle.dump(label_encoder, open(self.encoder_filepath, "wb"))
+            print("Finish writing encoder to file")
+        else:
+            label_data['label'] = -1
 
         self.img_lookup = label_data
         self.root_dir = root_dir
@@ -48,13 +53,27 @@ class WhaleDataset(Dataset):
     def __getitem__(self, idx):
         img_name = os.path.join(self.root_dir, self.img_lookup.ix[idx, 0])
         image = io.imread(img_name)
+
         whale_id = self.img_lookup.ix[idx, 2]
-        sample = {'image': image, 'whale_id': whale_id}
+        sample = {'image_name': self.img_lookup.ix[idx, 0],
+                  'image': image,
+                  'whale_id': whale_id}
 
         if self.transform:
             sample = self.transform(sample)
 
         return sample
+
+    @staticmethod
+    def inverse_transform(encoder, class_labels):
+        return encoder.inverse_transform(class_labels)
+
+    def get_encoder(self):
+        return pickle.load(open(self.encoder_filepath, "rb"))
+
+    def get_sample_submission(self):
+        return pd.read_csv(self.sample_submission_filepath)
+
 
 
 class Rescale(object):
@@ -71,7 +90,7 @@ class Rescale(object):
         self.output_size = output_size
 
     def __call__(self, sample):
-        image, whale_id = sample['image'], sample['whale_id']
+        name, image, whale_id = sample['image_name'],sample['image'], sample['whale_id']
 
         h, w = image.shape[:2]
         if isinstance(self.output_size, int):
@@ -86,20 +105,21 @@ class Rescale(object):
 
         img = transform.resize(image, (new_h, new_w))
 
-        return {'image': img, 'whale_id': whale_id}
+        return {'image_name': name, 'image': img, 'whale_id': whale_id}
 
 
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
 
     def __call__(self, sample):
-        image, whale_id = sample['image'], sample['whale_id']
+        image_name,image, whale_id = sample['image_name'],sample['image'], sample['whale_id']
 
         # swap color axis because
         # numpy image: H x W x C
         # torch image: C X H X W
         image = image.transpose((2, 0, 1))
-        return {'image': torch.from_numpy(image),
+        return {'image_name': image_name,
+                'image': torch.from_numpy(image),
                 'whale_id': whale_id}
 
 
@@ -130,21 +150,29 @@ class Net(nn.Module):
         return x
 
 
-transformed_dataset = WhaleDataset(csv_file=FILEPATH_CONFIG['data'] + 'train.csv',
-                                   root_dir=FILEPATH_CONFIG['data'] + 'imgs',
-                                   transform=transforms.Compose([
+train_dataset = WhaleDataset(csv_file='/data/train.csv',
+                             root_dir='/data/imgs',
+                             train=True,
+                             transform=transforms.Compose([
                                        Rescale((256, 384)),
                                        ToTensor()
                                    ]))
-dataloader = DataLoader(transformed_dataset, batch_size=batch_size,
-                        shuffle=True)
+test_dataset = WhaleDataset(csv_file='/data/sample_submission.csv',
+                            root_dir='/data/imgs',
+                            transform=transforms.Compose([
+                                Rescale((256, 384)),
+                                ToTensor()
+                            ]))
+train_loader = DataLoader(train_dataset, batch_size=batch_size,
+                          shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=batch_size,
+                         shuffle=False)
 print("Done loading data")
 
 net = Net().double()
 if is_gpu:
     net.cuda()
 print("Done loading net")
-
 
 criterion = nn.CrossEntropyLoss()
 print("Done loading loss")
@@ -153,7 +181,7 @@ print("Done loading optimizer")
 
 for epoch in range(num_epochs):  # loop over the dataset multiple times
     running_loss = 0.0
-    for i, data in enumerate(dataloader, 0):
+    for i, data in enumerate(train_loader, 0):
         print("Batch No. %d" % i)
         # get the inputs
         inputs, labels = data['image'], data['whale_id']
@@ -176,11 +204,45 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
 
         # print statistics
         running_loss += loss.data[0]
-        if i % 2000 == 1999:  # print every 2000 mini-batches
+        if i % 10 == 0:  # print every 2000 mini-batches
             print('[%d, %5d] loss: %.3f' %
                   (epoch + 1, i + 1, running_loss / 2000))
             running_loss = 0.0
 
 print('Finished Training')
 
-pickle.dump(net, open("net_baseline.p", "wb"))
+pickle.dump(net, open("/output/net_baseline.p", "wb"))
+
+# Test the model
+net.eval()
+
+encoder = test_dataset.get_encoder()
+test_data_list = []
+
+for data in test_loader:
+    images = Variable(data['image'])
+    image_names = data['image_name']
+
+    if is_gpu:
+        images = Variable(images.cuda())
+    outputs = net(images)
+    _, predicted = torch.max(outputs.data, 1)
+    print("Predicted")
+    print(predicted)
+
+    whale_id = test_dataset.inverse_transform(encoder, predicted)
+    print("Corresponding whale ID")
+    print(whale_id)
+
+    dictionary = list(zip(image_names, whale_id))
+    test_data_list.extend(dictionary)
+
+# Write to submission file
+sample_submission = test_dataset.get_sample_submission()
+predicted_compiled = pd.DataFrame(columns=['Image', 'whale_id'], data=test_data_list)
+one_hot = pd.get_dummies(predicted_compiled['whale_id'])
+# Drop column whale_id as it is now encoded
+predicted_compiled = predicted_compiled.drop('whale_id', axis=1)
+# Join the encoded df
+for_submission = predicted_compiled.join(one_hot)
+for_submission.to_csv("/output/submission.csv")

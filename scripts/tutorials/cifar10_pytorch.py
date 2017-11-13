@@ -6,6 +6,6 @@ transform = transforms.Compose(
     [transforms.ToTensor(),
      transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-torchvision.datasets.
+
 trainset = torchvision.datasets.CIFAR10(root='../data', train=True,
                                         download=False, transform=transform)
