@@ -12,7 +12,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import pickle
-from subprocess import call
 
 # Hyper Parameters
 num_epochs = 5
@@ -23,7 +22,10 @@ is_gpu = True
 
 class WhaleDataset(Dataset):
     """Whale dataset."""
+
     encoder_filepath = "label_encoder.p"
+    sample_submission_filepath = "/data/submission_template.csv"
+
     def __init__(self, csv_file, root_dir, train=False, transform=None):
         """
         Args:
@@ -53,7 +55,9 @@ class WhaleDataset(Dataset):
         image = io.imread(img_name)
 
         whale_id = self.img_lookup.ix[idx, 2]
-        sample = {'image': image, 'whale_id': whale_id}
+        sample = {'image_name': self.img_lookup.ix[idx, 0],
+                  'image': image,
+                  'whale_id': whale_id}
 
         if self.transform:
             sample = self.transform(sample)
@@ -65,6 +69,10 @@ class WhaleDataset(Dataset):
 
     def get_encoder(self):
         return pickle.load(open(self.encoder_filepath, "rb"))
+
+    def get_sample_submission(self):
+        return pd.read_csv(self.sample_submission_filepath)
+
 
 
 class Rescale(object):
@@ -81,7 +89,7 @@ class Rescale(object):
         self.output_size = output_size
 
     def __call__(self, sample):
-        image, whale_id = sample['image'], sample['whale_id']
+        name, image, whale_id = sample['image_name'],sample['image'], sample['whale_id']
 
         h, w = image.shape[:2]
         if isinstance(self.output_size, int):
@@ -96,20 +104,21 @@ class Rescale(object):
 
         img = transform.resize(image, (new_h, new_w))
 
-        return {'image': img, 'whale_id': whale_id}
+        return {'image_name': name, 'image': img, 'whale_id': whale_id}
 
 
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
 
     def __call__(self, sample):
-        image, whale_id = sample['image'], sample['whale_id']
+        image_name,image, whale_id = sample['image_name'],sample['image'], sample['whale_id']
 
         # swap color axis because
         # numpy image: H x W x C
         # torch image: C X H X W
         image = image.transpose((2, 0, 1))
-        return {'image': torch.from_numpy(image),
+        return {'image_name': image_name,
+                'image': torch.from_numpy(image),
                 'whale_id': whale_id}
 
 
@@ -201,15 +210,18 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
 
 print('Finished Training')
 
-pickle.dump(net, open("net_baseline.p", "wb"))
+pickle.dump(net, open("/output/net_baseline.p", "wb"))
 
 # Test the model
 net.eval()
 
 encoder = test_dataset.get_encoder()
+test_data_list = []
 
-for images,labels in test_loader:
-    images = Variable(images)
+for data in test_loader:
+    images = Variable(data['image'])
+    image_names = data['image_name']
+
     if is_gpu:
         images = Variable(images.cuda())
     outputs = net(images)
@@ -217,5 +229,19 @@ for images,labels in test_loader:
     print("Predicted")
     print(predicted)
 
-    whale_id = test_dataset.inverse_transform(encoder,predicted)
+    whale_id = test_dataset.inverse_transform(encoder, predicted)
+    print("Corresponding whale ID")
     print(whale_id)
+
+    dictionary = list(zip(image_names, whale_id))
+    test_data_list.extend(dictionary)
+
+# Write to submission file
+sample_submission = test_dataset.get_sample_submission()
+predicted_compiled = pd.DataFrame(columns=['Image', 'whale_id'], data=test_data_list)
+one_hot = pd.get_dummies(predicted_compiled['whale_id'])
+# Drop column whale_id as it is now encoded
+predicted_compiled = predicted_compiled.drop('whale_id', axis=1)
+# Join the encoded df
+for_submission = predicted_compiled.join(one_hot)
+for_submission.to_csv("/output/submission.csv")
