@@ -164,6 +164,8 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size,
                          shuffle=False)
 print("Done loading data")
 
+# Uncomment to load pre-trained model
+# net = pickle.load(open("net_baseline.p", 'rb'))
 net = Net().double()
 if is_gpu:
     net.cuda()
@@ -199,7 +201,7 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
         # print statistics
         running_loss += loss.data[0]
         if i % 10 == 0:  # print every 2000 mini-batches
-            print('[%d, %5d] loss: %.3f' %
+            print('[%d, %9d] loss: %.3f' %
                   (epoch + 1, i + 1, running_loss / 2000))
             running_loss = 0.0
 
@@ -214,17 +216,25 @@ encoder = test_dataset.get_encoder()
 test_data_list = []
 
 for data in test_loader:
-    images = Variable(data['image'])
+    images = data['image']
     image_names = data['image_name']
-
+    print("Images glimpse: ")
+    print(images[0])
     if is_gpu:
         images = Variable(images.cuda())
+    else:
+        images = Variable(images)
     outputs = net(images)
+    print("Output:")
+    print(outputs)
     _, predicted = torch.max(outputs.data, 1)
     print("Predicted")
     print(predicted)
 
-    whale_id = test_dataset.inverse_transform(encoder, predicted.numpy())
+    if is_gpu:
+        whale_id = test_dataset.inverse_transform(encoder, predicted.cpu().numpy())
+    else:
+        whale_id = test_dataset.inverse_transform(encoder, predicted.numpy())
     print("Corresponding whale ID")
     print(whale_id)
 
