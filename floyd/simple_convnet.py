@@ -1,8 +1,8 @@
 from __future__ import print_function, division
 import torch
 import pandas as pd
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
+from torch.utils.data import DataLoader
+from torchvision import transforms
 from torch.autograd import Variable
 import torch.nn as nn
 import torch.optim as optim
@@ -11,7 +11,7 @@ from transforms import Rescale, ToTensor
 from whale_dataset import WhaleDataset
 
 # Hyper Parameters
-num_epochs = 5
+num_epochs = 2
 batch_size = 5
 learning_rate = 0.001
 is_gpu = True
@@ -78,7 +78,6 @@ print("Done loading optimizer")
 for epoch in range(num_epochs):  # loop over the dataset multiple times
     running_loss = 0.0
     for i, data in enumerate(train_loader, 0):
-        print("Batch No. %d" % i)
         # get the inputs
         inputs, labels = data['image'], data['whale_id']
 
@@ -115,15 +114,15 @@ test_data_list = []
 for data in test_loader:
     images = data['image']
     image_names = data['image_name']
-    print("Images glimpse: ")
-    print(images[0])
+    # print("Images glimpse: ")
+    # print(images[0])
     if is_gpu:
         images = Variable(images.cuda())
     else:
         images = Variable(images)
     outputs = net(images)
-    print("Output:")
-    print(outputs)
+    # print("Output:")
+    # print(outputs)
     _, predicted = torch.max(outputs.data, 1)
     print("Predicted")
     print(predicted)
@@ -132,19 +131,19 @@ for data in test_loader:
         whale_id = test_dataset.inverse_transform(encoder, predicted.cpu().numpy())
     else:
         whale_id = test_dataset.inverse_transform(encoder, predicted.numpy())
+    print("Images")
+    print(image_names)
     print("Corresponding whale ID")
     print(whale_id)
 
     dictionary = list(zip(image_names, whale_id))
     test_data_list.extend(dictionary)
 
-# Write to submission file
-predicted_compiled = pd.DataFrame(columns=['Image', 'whale_id'], data=test_data_list)
-one_hot = pd.get_dummies(predicted_compiled['whale_id'])
-
-# Drop column whale_id as it is now encoded
-predicted_compiled = predicted_compiled.drop('whale_id', axis=1)
-
-# Join the encoded df
-for_submission = predicted_compiled.join(one_hot)
-for_submission.to_csv("/output/submission.csv", index=False)
+print(test_data_list)
+submission = pd.read_csv('/data/sample_submission.csv')
+# whale_00195 - set all value at this column to 0
+second_column = 'whale_00195'
+submission.loc[:, second_column] = 0
+for (name, whale_id) in test_data_list:
+    submission.loc[submission.Image == name, whale_id] = 1
+submission.to_csv("/output/submission.csv", index=False)
