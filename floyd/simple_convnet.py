@@ -15,9 +15,9 @@ import pickle
 
 # Hyper Parameters
 num_epochs = 5
-batch_size = 100
+batch_size = 20
 learning_rate = 0.001
-is_gpu = False
+is_gpu = True
 
 
 class WhaleDataset(Dataset):
@@ -171,7 +171,7 @@ print("Done loading net")
 
 criterion = nn.CrossEntropyLoss()
 print("Done loading loss")
-optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+optimizer = optim.SGD(net.parameters(), lr=learning_rate, momentum=0.9)
 print("Done loading optimizer")
 
 for epoch in range(num_epochs):  # loop over the dataset multiple times
@@ -192,7 +192,6 @@ for epoch in range(num_epochs):  # loop over the dataset multiple times
 
         # forward + backward + optimize
         outputs = net(inputs)
-        print(outputs)
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
