@@ -10,6 +10,7 @@ class WhaleDataset(Dataset):
 
     encoder_filepath = "label_encoder.p"
 
+
     def __init__(self, csv_file, root_dir, train=False, transform=None):
         """
         Args:
